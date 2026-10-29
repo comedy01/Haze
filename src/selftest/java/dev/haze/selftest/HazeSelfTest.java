@@ -435,7 +435,6 @@ public final class HazeSelfTest {
         }
     }
 
-
     static void run(Minecraft mc, String command) {
         IntegratedServer server = mc.getSingleplayerServer();
         server.execute(() -> Settings.command(server, command));
