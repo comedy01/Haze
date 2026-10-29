@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"id": "haze-selftest",
+	"version": "1.0.0",
+	"name": "Haze self test",
+	"description": "Development-only in-world checks for Haze. Not shipped.",
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"dev.haze.selftest.fabric.HazeSelfTestFabric"
+		]
+	},
+	"depends": {
+		"haze": "*"
+	},
+	"mixins": [
+		"haze_selftest.mixins.json"
+	]
+}

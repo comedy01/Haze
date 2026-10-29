@@ -1,0 +1,175 @@
+plugins {
+	id 'dev.architectury.loom' version '1.17.493'
+	id 'xyz.wagyourtail.jvmdowngrader' version '2.0.1'
+}
+
+def root = file('..')
+def minecraftVersion = project.findProperty('minecraft_version') ?: '1.16.5'
+
+def rootProps = new Properties()
+file("${root}/gradle.properties").withInputStream { rootProps.load(it) }
+def versionProps = new Properties()
+file("${root}/versions/forge/${minecraftVersion}.properties").withInputStream { versionProps.load(it) }
+
+def modId = rootProps.archives_base_name
+def packs = versionProps.getProperty('packs').split(',')
+def mainExcludes = versionProps.getProperty('main_excludes', '').split(',').findAll { it }
+def javaVersion = versionProps.getProperty('java').toInteger()
+def withSelftest = project.hasProperty('selftest')
+
+version = "${rootProps.mod_version}+mc${versionProps.label}"
+group = rootProps.maven_group
+
+def expansions = [java_version: javaVersion, extra_mixins: '', version: project.version]
+versionProps.stringPropertyNames().each { expansions[it] = versionProps.getProperty(it) }
+def shaderHeader = "#version 150\n#define IN(n) in\n#define OUT(n) out\nuniform mat4 ModelViewMat;\nuniform mat4 ProjMat;\nuniform vec4 ColorModulator;\nuniform vec3 ModelOffset;\nuniform mat4 TextureMat;"
+def generatedShaders = layout.buildDirectory.dir('generated/haze-shaders')
+def generateShaders = tasks.register('generateShaders') {
+	def source = file("${root}/src/shaders")
+	inputs.dir(source)
+	outputs.dir(generatedShaders)
+	doLast {
+		def raw = generatedShaders.get().dir('assets/haze/shaders/raw').asFile
+		raw.deleteDir()
+		raw.mkdirs()
+		def noise = new File(source, 'noise.glsl').getText('UTF-8')
+		source.listFiles().findAll { it.name.endsWith('.vsh') || it.name.endsWith('.fsh') }.each { shader ->
+			def text = shader.getText('UTF-8')
+				.replace('HAZE_VERTEX_HEADER', shaderHeader)
+				.replace('HAZE_FRAGMENT_HEADER', shaderHeader)
+				.replace('HAZE_NOISE', noise)
+			new File(raw, shader.name).setText(text, 'UTF-8')
+		}
+	}
+}
+
+base {
+	archivesName = "${modId}-forge"
+}
+
+java {
+	toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+sourceSets {
+	main {
+		java.srcDirs = ["${root}/src/main/java", "${root}/src/loader/forge/java"] + packs.collect { "${root}/src/compat/${it}/java" }
+		java.exclude { element ->
+			mainExcludes.contains(element.relativePath.pathString) && element.file.toPath().startsWith(file("${root}/src/main/java").toPath())
+		}
+		resources.srcDirs = ["${root}/src/main/resources", "${root}/src/loader/forge/resources"] + packs.collect { "${root}/src/compat/${it}/resources" }
+		resources.srcDir(files(generatedShaders).builtBy(generateShaders))
+	}
+	if (withSelftest) {
+		selftest {
+			java.srcDirs = ["${root}/src/selftest/java", "${root}/src/selftest/forge/java"] + packs.collect { "${root}/src/compat/${it}/selftest/java" }
+			resources.srcDirs = ["${root}/src/selftest/resources", "${root}/src/selftest/forge/resources"]
+			compileClasspath += main.compileClasspath + main.output
+			runtimeClasspath += main.runtimeClasspath + main.output
+		}
+	}
+}
+
+loom {
+	forge {
+		mixinConfig "${modId}.mixins.json"
+	}
+	runs {
+		remove server
+	}
+}
+
+repositories {
+	maven { url = 'https://maven.minecraftforge.net/' }
+	exclusiveContent {
+		forRepository {
+			maven { url = 'https://api.modrinth.com/maven' }
+		}
+		filter {
+			includeGroup 'maven.modrinth'
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${minecraftVersion}"
+	mappings loom.officialMojangMappings()
+	forge "net.minecraftforge:forge:${versionProps.forge_version}"
+}
+
+processResources {
+	inputs.properties(expansions)
+	filesMatching(['META-INF/mods.toml', "${modId}.mixins.json".toString()]) {
+		expand expansions
+	}
+	filesMatching('pack.mcmeta') {
+		filter { it.replace('"pack_format": 15', "\"pack_format\": ${versionProps.pack_format}") }
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 17
+	options.encoding = 'UTF-8'
+}
+
+jar {
+	from("${root}/LICENSE") {
+		rename { "${it}_${base.archivesName.get()}" }
+	}
+	manifest.attributes('MixinConfigs': "${modId}.mixins.json")
+}
+
+jvmdg.downgradeTo = JavaVersion.VERSION_1_8
+downgradeJar {
+	classpath = sourceSets.main.compileClasspath
+}
+shadeDowngradedApi {
+	shadePath = "dev/${modId}/jvmdg/"
+}
+remapJar {
+	inputFile = shadeDowngradedApi.archiveFile
+	dependsOn shadeDowngradedApi
+}
+
+if (withSelftest) {
+	processSelftestResources {
+		inputs.properties(expansions)
+		filesMatching('META-INF/mods.toml') {
+			filter { it.replace('loaderVersion="[40,)"', "loaderVersion=\"${versionProps.loader_range}\"") }
+		}
+		filesMatching('pack.mcmeta') {
+			filter { it.replace('"pack_format": 15', "\"pack_format\": ${versionProps.pack_format}") }
+		}
+		filesMatching("${modId}_selftest.mixins.json".toString()) {
+			filter { it.replace('"JAVA_17"', "\"JAVA_${javaVersion}\"") }
+		}
+	}
+
+	def selftestJar = tasks.register('selftestJar', Jar) {
+		from sourceSets.selftest.output
+		archiveBaseName = "${modId}-selftest"
+		destinationDirectory = layout.buildDirectory.dir('devlibs')
+		manifest.attributes('MixinConfigs': "${modId}_selftest.mixins.json")
+	}
+	def selftestDowngrade = tasks.register('selftestDowngrade', xyz.wagyourtail.jvmdg.gradle.task.DowngradeJar) {
+		inputFile = selftestJar.flatMap { it.archiveFile }
+		downgradeTo = JavaVersion.VERSION_1_8
+		classpath = sourceSets.selftest.compileClasspath
+		archiveBaseName = "${modId}-selftest"
+		archiveClassifier = 'downgraded'
+		destinationDirectory = layout.buildDirectory.dir('devlibs')
+	}
+	def selftestShade = tasks.register('selftestShade', xyz.wagyourtail.jvmdg.gradle.task.ShadeJar) {
+		inputFile = selftestDowngrade.flatMap { it.archiveFile }
+		shadePath = "dev/${modId}/selftest/jvmdg/"
+		archiveBaseName = "${modId}-selftest"
+		archiveClassifier = 'shaded'
+		destinationDirectory = layout.buildDirectory.dir('devlibs')
+	}
+	def remapSelftestJar = tasks.register('remapSelftestJar', net.fabricmc.loom.task.RemapJarTask) {
+		inputFile = selftestShade.flatMap { it.archiveFile }
+		archiveBaseName = "${modId}-selftest"
+		classpath.from(sourceSets.selftest.compileClasspath)
+	}
+	tasks.named('build') { dependsOn remapSelftestJar }
+}

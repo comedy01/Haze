@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "dev.haze.mixin",
+	"compatibilityLevel": "JAVA_${java_version}",
+	"client": [
+		"MinecraftMixin",
+		"FogPassMixin"${extra_mixins}
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

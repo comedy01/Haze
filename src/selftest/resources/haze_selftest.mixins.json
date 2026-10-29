@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "dev.haze.selftest.mixin",
+	"compatibilityLevel": "JAVA_17",
+	"client": [
+		"FogPassTimerMixin",
+		"MinecraftFrameMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

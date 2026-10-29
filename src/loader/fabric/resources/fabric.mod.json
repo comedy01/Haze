@@ -1,0 +1,42 @@
+{
+	"schemaVersion": 1,
+	"id": "haze",
+	"version": "${version}",
+	"name": "Haze",
+	"description": "Realistic fog and mist: some calm nights roll in a thick ground fog that glows warm at sunrise and burns off through the morning, light mist hangs in the air during and after rain, swamps stay misty and dry biomes stay clear. Client-side only.",
+	"icon": {
+		"16": "assets/haze/icon16.png",
+		"32": "assets/haze/icon32.png",
+		"128": "assets/haze/icon128.png"
+	},
+	"authors": [
+		"comedy01"
+	],
+	"license": "MIT",
+	"contact": {
+		"homepage": "https://github.com/comedy01/Haze",
+		"sources": "https://github.com/comedy01/Haze",
+		"issues": "https://github.com/comedy01/Haze/issues"
+	},
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"dev.haze.fabric.HazeFabric"
+		],
+		"modmenu": [
+			"dev.haze.fabric.HazeModMenu"
+		]
+	},
+	"mixins": [
+		"haze.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "${range}",
+		"java": ">=${java_version}",
+		"${key_module}": "*"
+	},
+	"suggests": {
+		"modmenu": "*"
+	}
+}

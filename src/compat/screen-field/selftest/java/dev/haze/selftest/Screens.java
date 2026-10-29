@@ -1,0 +1,42 @@
+package dev.haze.selftest;
+
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.screens.Overlay;
+import net.minecraft.client.gui.screens.Screen;
+
+final class Screens {
+    private Screens() {
+    }
+
+    static Screen current(Minecraft mc) {
+        return mc.screen;
+    }
+
+    static void open(Minecraft mc, Screen screen) {
+        mc.setScreen(screen);
+    }
+
+    static Overlay overlay(Minecraft mc) {
+        return mc.getOverlay();
+    }
+
+    static void hideHud(Minecraft mc) {
+        mc.options.hideGui = true;
+    }
+
+    static RenderTarget renderTarget(Minecraft mc) {
+        return mc.getMainRenderTarget();
+    }
+
+    static void turn(Minecraft mc, float yaw, float pitch) {
+        mc.player.setYRot(yaw);
+        mc.player.setXRot(pitch);
+    }
+
+    static void shot(Minecraft mc) {
+        Screenshot.grab(mc.gameDirectory, renderTarget(mc), message -> {
+        });
+    }
+}

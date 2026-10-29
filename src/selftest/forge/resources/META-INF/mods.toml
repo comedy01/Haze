@@ -1,0 +1,8 @@
+modLoader="javafml"
+loaderVersion="[40,)"
+license="MIT"
+
+[[mods]]
+modId="haze_selftest"
+version="1.0.0"
+displayName="Haze self test"
